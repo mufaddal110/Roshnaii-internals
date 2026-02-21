@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { checkAuth } from './store/slices/authSlice';
 import api from './api';
 import Layout from './components/Layout';
+// ... other imports (unchanged for brevity)
 import Home from './pages/Home';
 import SinfPage from './pages/SinfPage';
 import PoetsPage from './pages/PoetsPage';
@@ -18,33 +20,39 @@ import './App.css';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children, requireProfile = true }) => {
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
+  const { isAuthenticated, user, loading } = useSelector((state) => state.auth);
   const [hasProfile, setHasProfile] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(requireProfile);
   const location = useLocation();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const userData = await api.auth.getUser();
-      setUser(userData);
-
-      if (userData && requireProfile) {
+    const checkProfile = async () => {
+      if (isAuthenticated && user && requireProfile) {
         try {
           const poets = await api.get('/poets');
-          const profile = poets.find(p => p.userId === userData.id);
+          const profile = poets.find(p => p.userId === user.id);
           setHasProfile(!!profile);
         } catch {
           setHasProfile(false);
+        } finally {
+          setProfileLoading(false);
         }
+      } else {
+        setProfileLoading(false);
       }
-      setLoading(false);
     };
-    checkAuth();
-  }, [requireProfile]);
+    checkProfile();
+  }, [isAuthenticated, user, requireProfile]);
 
-  if (loading) return <div className="loading">LOADING...</div>;
+  if (loading || (requireProfile && profileLoading)) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+        <p className="loading">LOADING...</p>
+      </div>
+    );
+  }
 
-  if (!user) {
+  if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -56,6 +64,12 @@ const ProtectedRoute = ({ children, requireProfile = true }) => {
 };
 
 function App() {
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    dispatch(checkAuth());
+  }, [dispatch]);
+
   return (
     <Router>
       <Layout>

@@ -1,13 +1,14 @@
 const jwt = require('jsonwebtoken');
 
 const auth = (req, res, next) => {
-    const header = req.headers.authorization;
-    if (!header || !header.startsWith('Bearer ')) {
+    // Check both cookie and Authorization header
+    const token = req.cookies.token || (req.headers.authorization && req.headers.authorization.startsWith('Bearer ') ? req.headers.authorization.split(' ')[1] : null);
+
+    if (!token) {
         return res.status(401).json({ error: 'No token provided' });
     }
 
     try {
-        const token = header.split(' ')[1];
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.user = decoded; // { id, email, isAdmin }
         next();
@@ -18,10 +19,10 @@ const auth = (req, res, next) => {
 
 // Optional auth — attaches user if token exists, but doesn't block
 const optionalAuth = (req, res, next) => {
-    const header = req.headers.authorization;
-    if (header && header.startsWith('Bearer ')) {
+    const token = req.cookies.token || (req.headers.authorization && req.headers.authorization.startsWith('Bearer ') ? req.headers.authorization.split(' ')[1] : null);
+
+    if (token) {
         try {
-            const token = header.split(' ')[1];
             req.user = jwt.verify(token, process.env.JWT_SECRET);
         } catch (err) {
             // Token invalid, continue without user

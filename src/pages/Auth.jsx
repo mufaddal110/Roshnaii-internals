@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { login, clearError } from '../store/slices/authSlice';
 import api from '../api';
 
 const Auth = () => {
@@ -11,37 +13,47 @@ const Auth = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+    const [localLoading, setLocalLoading] = useState(false);
+    const [localError, setLocalError] = useState(null);
     const [message, setMessage] = useState(null);
+
     const navigate = useNavigate();
+    const dispatch = useDispatch();
+    const { isAuthenticated, error: reduxError, loading: reduxLoading } = useSelector((state) => state.auth);
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            navigate('/dashboard');
+        }
+    }, [isAuthenticated, navigate]);
+
+    useEffect(() => {
+        // Clear Redux error when switching mode
+        dispatch(clearError());
+        setLocalError(null);
+    }, [isLogin, dispatch]);
 
     const handleAuth = async (e) => {
         e.preventDefault();
-        if (loading) return;
-        setLoading(true);
-        setError(null);
+        setLocalError(null);
         setMessage(null);
 
         if (!isLogin && password !== confirmPassword) {
-            setError('Passwords do not match.');
-            setLoading(false);
+            setLocalError('Passwords do not match.');
             return;
         }
 
         if (password.length < 6) {
-            setError('Password must be at least 6 characters long.');
-            setLoading(false);
+            setLocalError('Password must be at least 6 characters long.');
             return;
         }
 
         try {
             if (isLogin) {
-                const res = await api.auth.login({ email, password });
-                if (res.token) {
-                    navigate('/dashboard');
-                }
+                const result = await dispatch(login({ email, password })).unwrap();
+                // Navigation is handled by useEffect on isAuthenticated
             } else {
+                setLocalLoading(true);
                 await api.auth.signup({
                     email,
                     password,
@@ -50,18 +62,23 @@ const Auth = () => {
                     favoriteShair,
                 });
                 navigate(`/verify-otp?email=${encodeURIComponent(email)}`);
-                return;
             }
         } catch (err) {
             if (err.data?.needsVerification) {
                 navigate(`/verify-otp?email=${encodeURIComponent(email)}`);
                 return;
             }
-            setError(err.message || 'Something went wrong. Please try again.');
+            // Error is already handled by Redux for login, but for signup we use local state or generic message
+            if (!isLogin) {
+                setLocalError(err.message || 'Signup failed. Please try again.');
+            }
         } finally {
-            setLoading(false);
+            setLocalLoading(false);
         }
     };
+
+    const loading = localLoading || reduxLoading;
+    const displayError = localError || reduxError;
 
     const styles = {
         page: {
@@ -175,7 +192,7 @@ const Auth = () => {
                     {isLogin ? 'Welcome back to Roshnaii' : 'Join the community of poetry lovers'}
                 </p>
 
-                {error && <p style={styles.error}>{error}</p>}
+                {displayError && <p style={styles.error}>{displayError}</p>}
                 {message && <p style={styles.success}>{message}</p>}
 
                 <form onSubmit={handleAuth}>
@@ -317,7 +334,12 @@ const Auth = () => {
                 <p style={styles.switchText}>
                     {isLogin ? "Don't have an account? " : 'Already have an account? '}
                     <button
-                        onClick={() => { setIsLogin(!isLogin); setError(null); setMessage(null); }}
+                        onClick={() => {
+                            setIsLogin(!isLogin);
+                            setLocalError(null);
+                            setMessage(null);
+                            dispatch(clearError());
+                        }}
                         style={styles.switchLink}
                     >
                         {isLogin ? 'Sign Up' : 'Login'}

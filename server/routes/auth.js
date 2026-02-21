@@ -193,8 +193,15 @@ router.post('/login', async (req, res) => {
 
         const token = generateToken(user);
 
+        // Set secure HttpOnly cookie
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+
         res.json({
-            token,
             user: {
                 id: user._id,
                 email: user.email,
@@ -208,6 +215,12 @@ router.post('/login', async (req, res) => {
         console.error('Login error:', err);
         res.status(500).json({ error: 'Server error.' });
     }
+});
+
+// POST /api/auth/logout
+router.post('/logout', (req, res) => {
+    res.clearCookie('token');
+    res.json({ message: 'Logged out successfully.' });
 });
 
 // GET /api/auth/me

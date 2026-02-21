@@ -1,19 +1,16 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Token management
-const getToken = () => localStorage.getItem('roshnaii_token');
-const setToken = (token) => localStorage.setItem('roshnaii_token', token);
-const removeToken = () => localStorage.removeItem('roshnaii_token');
-
 // Core fetch wrapper
 const request = async (endpoint, options = {}) => {
     const { method = 'GET', body, headers: customHeaders = {} } = options;
 
     const headers = { ...customHeaders };
-    const token = getToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const config = { method, headers };
+    const config = {
+        method,
+        headers,
+        credentials: 'include' // Important for sending/receiving cookies
+    };
 
     if (body && !(body instanceof FormData)) {
         headers['Content-Type'] = 'application/json';
@@ -51,28 +48,18 @@ const api = {
     // Auth helpers
     auth: {
         signup: (data) => api.post('/auth/signup', data),
-        login: async (data) => {
-            const res = await api.post('/auth/login', data);
-            if (res.token) setToken(res.token);
-            return res;
-        },
+        login: (data) => api.post('/auth/login', data),
+        logout: () => api.post('/auth/logout'),
         verifyOtp: (data) => api.post('/auth/verify-otp', data),
         resendOtp: (data) => api.post('/auth/resend-otp', data),
         getUser: async () => {
-            const token = getToken();
-            if (!token) return null;
             try {
                 return await api.get('/auth/me');
             } catch {
                 return null;
             }
         },
-        logout: () => {
-            removeToken();
-        },
-        isLoggedIn: () => !!getToken(),
     },
 };
 
 export default api;
-export { getToken, setToken, removeToken };
